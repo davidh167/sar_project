@@ -351,17 +351,95 @@ class PlanningAgent(SARBaseAgent):
         return search_area_description, search_radius_km
 
     def _prioritize_search_areas(self, search_radius_km, incident_data, environmental_data, operations_data):
-        """Prioritizes and returns search areas based on various factors."""
-        # ... (prioritize_search_areas - same as before) ... # Removed for brevity, keep your original prioritize_search_areas
+        """Prioritizes and returns search areas based on various factors, using Gemini for reasoning."""
+
         last_known_location = incident_data["last_known_location"]
         terrain = environmental_data["terrain_type"]
         weather_data = operations_data["current_weather_data"]
+        missing_person_profile = incident_data.get("missing_person_profile",
+                                                   "No specific profile available.")  # Example addition
 
+        # --- Gemini Prompt ---
+        prompt = f"""
+        Analyze the following information to prioritize search areas for a Search and Rescue (SAR) operation.
+
+        **Incident Data:**
+        * Last Known Location: {last_known_location}
+        * Search Radius: {search_radius_km} km
+        * Missing Person Profile: {missing_person_profile} (e.g., age, fitness level, experience in wilderness)
+        * Time Missing: {incident_data.get("time_missing", "Unknown")}
+
+        **Environmental Data:**
+        * Terrain Type: {terrain} (e.g., forest, mountains, urban, coastal)
+        * Specific Terrain Features: {environmental_data.get("terrain_features", "None")} (e.g., rivers, cliffs, caves)
+
+        **Weather Data:**
+        * Current Weather Conditions: {weather_data} (as a dictionary)
+
+        **Operations Context:**
+        * Available Resources: {operations_data.get("available_resources", "Limited")} (e.g., ground teams, aerial support, canine units)
+        * Urgency Level: {operations_data.get("urgency_level", "Medium")} (e.g., High, Medium, Low - based on time missing, vulnerability of person, etc.)
+
+        **Instructions:**
+
+        1.  **Identify 3-5 distinct search areas within the {search_radius_km} km radius of '{last_known_location}'.** Consider the last known location as the central point.
+        2.  **For each search area, assign a priority: "High", "Medium", or "Low".**
+        3.  **Provide a concise rationale (1-2 sentences) for the assigned priority of each area,** explaining how the incident data, environmental factors, and weather conditions influence the priority.
+        4.  **Format the output as a JSON list of dictionaries.** Each dictionary should have the keys: "area", "priority", and "rationale".
+
+        **Example Output Format:**
+        [
+            {{"area": "Area Name 1", "priority": "High", "rationale": "Rationale for High Priority"}},
+            {{"area": "Area Name 2", "priority": "Medium", "rationale": "Rationale for Medium Priority"}},
+            {{"area": "Area Name 3", "priority": "Low", "rationale": "Rationale for Low Priority"}}
+            # ... more areas if needed
+        ]
+        """
+
+        try:
+            response = model.generate_content(prompt)
+            gemini_output = response.text.replace("```json", "")
+            gemini_output = gemini_output.replace("```", "")
+            print(f"Gemini Output for Search Area Prioritization:\n{gemini_output}")  # Log Gemini output
+
+            # --- Process Gemini Output (Attempt to parse JSON) ---
+            try:
+                import json  # Import json inside the try block
+                prioritized_areas = json.loads(gemini_output)
+
+                # --- Basic Validation of Output Structure ---
+                if not isinstance(prioritized_areas, list):
+                    raise ValueError("Gemini output is not a list.")
+                for area_data in prioritized_areas:
+                    if not isinstance(area_data, dict) or not all(
+                            key in area_data for key in ["area", "priority", "rationale"]):
+                        raise ValueError("Each area item is not a dictionary with required keys.")
+                    if area_data["priority"] not in ["High", "Medium", "Low"]:
+                        raise ValueError("Priority is not one of 'High', 'Medium', 'Low'.")
+
+                return prioritized_areas
+
+            except (json.JSONDecodeError, ValueError) as e:  # Catch JSON errors and validation errors
+                print(f"Error processing Gemini JSON output: {e}. Falling back to basic prioritization.")
+                return self._prioritize_search_areas_basic_fallback(last_known_location, terrain,
+                                                                    weather_data)  # Fallback
+
+
+        except Exception as e:
+            print(
+                f"Error during Gemini API call for search area prioritization: {e}. Falling back to basic prioritization.")
+            return self._prioritize_search_areas_basic_fallback(last_known_location, terrain,
+                                                                weather_data)  # API call failure fallback
+
+    def _prioritize_search_areas_basic_fallback(self, last_known_location, terrain, weather_data):
+        """Basic fallback prioritization logic (original hardcoded version)."""
         prioritized_areas = [
             {"area": last_known_location, "priority": "High", "rationale": "Proximity to last known point."},
-            {"area": "Densely forested areas within search radius", "priority": "Medium", "rationale": f"Terrain type: {terrain} may impede visibility."},
+            {"area": "Densely forested areas within search radius", "priority": "Medium",
+             "rationale": f"Terrain type: {terrain} may impede visibility."},
             {"area": "Water bodies within search radius", "priority": "Medium", "rationale": "Potential hazard area."},
-            {"area": "Trails radiating outwards from last known location", "priority": "Low", "rationale": "Possible direction of travel."}
+            {"area": "Trails radiating outwards from last known location", "priority": "Low",
+             "rationale": "Possible direction of travel."}
         ]
 
         if weather_data.get("rain_1h_mm", 0) > 0.1 or weather_data.get("snow_1h_mm", 0) > 0.1:
@@ -371,7 +449,6 @@ class PlanningAgent(SARBaseAgent):
                 if "trails" in area["area"].lower():
                     area["priority"] = "Medium"
         return prioritized_areas
-
 
     def _suggest_resource_allocation(self, prioritized_areas, logistics_data):
         """Suggests and returns resource allocation based on prioritized areas and available resources."""
