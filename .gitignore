@@ -4,3 +4,5 @@
 /dataSources/
 /dataSources.local.xml
 .env
+.venv/
+.idea/
