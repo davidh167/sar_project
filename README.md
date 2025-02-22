@@ -1,16 +1,18 @@
 # Search and Rescue (SAR) Agent Framework - CSC 581
 
-## Introduction
+## Planning Agent
+Added a PlanningAgent class that does the following:
+- Generating comprehensive search strategies by integrating simulated incident data, operations data (including real-time weather), logistics data, and environmental data.
+- Prioritizing search areas based on incident details, environmental factors, and operational conditions to focus search efforts effectively. 
+- Suggesting resource allocation for prioritized search areas based on available logistics, optimizing resource utilization. 
+- Creating basic mission plans that outline mission objectives, search strategies, resource allocation, communication plans, safety protocols, timelines, and map references. Fetching real-time weather data for the incident location using the OpenWeatherMap API, dynamically adjusting strategies to current conditions. 
+- Generating location name variations (typonyms) using Google Gemini (and a basic fallback) to improve weather data retrieval for potentially ambiguous location names. 
+- Generating Google Static Map URLs to visually represent the search area and aid in spatial understanding. 
+- Providing user-friendly summaries of both search strategies and mission plans using the Gemini API, making complex data easily digestible for SAR personnel. 
+- Formatting output as structured JSON for easy integration with other systems and for detailed data access. 
+- Processing requests via a process_request method, enabling handling of different actions such as "generate_strategy" and "create_mission_plan" in a modular way. 
+- Incorporating safety settings for Gemini API interactions, controlling the generation of potentially harmful content.
 
-This framework is for CSC 581 students to develop intelligent agents supporting the AI4S&R project. Students can create specialized agents for various SAR roles such as those listed in this spreadsheet:
-
-https://docs.google.com/spreadsheets/d/1QZK5HAdDC-_XNui6S0JZTbJH5_PbYJTp8_gyhXmz8Ek/edit?usp=sharing
-https://docs.google.com/spreadsheets/d/11rBV9CbKNeQbWbaks8TF6GO7WcSUDS_-hAoH75UEkgQ/edit?usp=sharing
-
-Each student or team will choose a specific role within the SAR ecosystem and implement an agent that provides decision support and automation for that role.
-
-## How to Submit
-Please submit a link to your clone of the repository to Canvas. 
 
 ## Prerequisites
 
