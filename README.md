@@ -65,6 +65,47 @@ pip install -e .
   ```
   genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
   ```
+- Update your `.env` file with the following:
+    ```
+    GOOGLE_API_KEY=your_openai_api_key_here
+    ```
+
+  #### OpenWeatherMaps:
+  - Obtain required API keys:
+    1. ``` pip install pyowm ```
+    2. ```
+         import pyowm 
+         from pyowm.commons import exceptions as pyowm_exceptions
+         owm = pyowm.OWM(OPENWEATHERMAP_API_KEY)
+         mgr = owm.weather_manager()
+       ```
+    3. OpenWeatherMaps: Obtain at https://openweathermap.org/api
+  - Configure with the following:
+    ```
+    OPENWEATHERMAP_API_KEY = os.getenv("OWM_API_KEY") # Get from OpenWeatherMap
+    ```
+  - Update your `.env` file with the following:
+    ```
+    OWM_API_KEY=your_openai_api_key_here
+    ```
+
+  #### GoogleMaps:
+  - Obtain required API keys:
+    1. ``` pip install googlemaps ```
+    2. ``` import googlemaps```
+    3. Google Maps:  Obtain at: https://developers.google.com/maps/documentation/javascript/get-api-key#console
+  - Configure with the following:
+    ```
+    GOOGLE_MAPS_API_KEY = os.getenv("GMAPS_API_KEY") 
+    gmaps = googlemaps.Client(key=GOOGLE_MAPS_API_KEY)
+    ```
+    - Update your `.env` file with the following:
+    ```
+    GMAPS_API_KEY=your_openai_api_key_here
+    ```
+
+
+
 
 Make sure to keep your `.env` file private and never commit it to version control.
 
