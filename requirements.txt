@@ -2,3 +2,7 @@ pyautogen
 python-dotenv
 pytest
 autogen
+google-api-core
+google-generativeai
+googlemaps
+pyowm
