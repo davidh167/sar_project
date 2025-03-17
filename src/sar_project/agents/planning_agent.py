@@ -5,10 +5,17 @@ import googlemaps
 import pyowm
 from dotenv import load_dotenv
 import os
+import logging
 from src.sar_project.agents.base_agent import *
 from urllib.parse import quote_plus
 from pyowm.commons import exceptions as pyowm_exceptions
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+)
+logger = logging.getLogger(__name__)
 
 # Load environment variables from .env file
 load_dotenv()
@@ -32,20 +39,20 @@ safety_settings = [
         "threshold": genai.types.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
     },
     {
-        "category": genai.types.HarmCategory. HARM_CATEGORY_HATE_SPEECH,
+        "category": genai.types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
         "threshold": genai.types.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
     },
     {
-        "category": genai.types.HarmCategory. HARM_CATEGORY_SEXUALLY_EXPLICIT,
+        "category": genai.types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
         "threshold": genai.types.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
     },
     {
-        "category": genai.types.HarmCategory. HARM_CATEGORY_DANGEROUS_CONTENT,
+        "category": genai.types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
         "threshold": genai.types.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
     },
 ]
 
-model = genai.GenerativeModel(model_name="gemini-pro",
+model = genai.GenerativeModel(model_name="gemini-2.0-flash",
                               generation_config=generation_config,
                               safety_settings=safety_settings)
 
@@ -89,8 +96,7 @@ def _suggest_resource_allocation(prioritized_areas, logistics_data):
                         f"Allocated {can_allocate} {resource_unit}(s) of {resource_type} based on {priority} priority and availability.")
 
                     if "forested" in area_name.lower() and resource_type == "uavs":
-                        rationale_parts.append(
-                            "Thermal drones are useful for detecting heat signatures in dense foliage.")
+                        rationale_parts.append("Thermal drones are useful for detecting heat signatures in dense foliage.")
                     elif "water" in area_name.lower() and resource_type == "ground_teams":
                         rationale_parts.append("Ground teams may be needed to search near water edges.")
                     elif "trail" in area_name.lower() and resource_type == "search_dogs":
@@ -100,8 +106,7 @@ def _suggest_resource_allocation(prioritized_areas, logistics_data):
             suggestions.append({
                 "area": area_name,
                 "suggested_resources": suggested_resources,
-                "rationale": " ".join(
-                    rationale_parts) if rationale_parts else f"Allocated resources based on priority: {priority}."
+                "rationale": " ".join(rationale_parts) if rationale_parts else f"Allocated resources based on priority: {priority}."
             })
         elif priority == "High":
             # If no specific resources allocated based on needs, but it's high priority,
@@ -117,7 +122,7 @@ def _suggest_resource_allocation(prioritized_areas, logistics_data):
                 suggestions.append({
                     "area": area_name,
                     "suggested_resources": suggested_resources,
-                    "rationale": f"High priority area, allocating remaining ground team."
+                    "rationale": "High priority area, allocating remaining ground team."
                 })
 
     # Handle any remaining resources after iterating through prioritized areas
@@ -156,7 +161,6 @@ def _create_mission_plan(strategy_data):
     Returns:
         dict: JSON-like dictionary containing the mission plan details.
     """
-
     try:
         plan_details = {
             "mission_name": f"SAR Mission - {strategy_data['incident_details']['incident_type']} - {strategy_data['incident_details']['location']}",
@@ -204,7 +208,7 @@ def _create_mission_plan(strategy_data):
 
         return plan_details
     except Exception as e:
-        print(f"Error creating mission plan: {e}")
+        logger.error(f"Error creating mission plan: {e}")
         return {"error": f"Error creating mission plan: {e}"}
 
 
@@ -248,6 +252,7 @@ def _get_static_map_url(location_name, search_radius_km=3):
         else:
             return "Error: Could not geocode location."
     except Exception as e:
+        logger.error(f"Error generating map URL: {e}")
         return f"Error generating map URL: {e}"
 
 
@@ -301,30 +306,26 @@ def _calculate_search_area(incident_data):
     missing_person_description = incident_data["missing_person_description"]
     experience_level = missing_person_description.get("experience_level", "Unknown").lower()
 
-    # Convert time_reported to a datetime object (assuming a specific format)
     try:
         from datetime import datetime
         time_reported = datetime.strptime(time_reported_str, "%Y-%m-%d %H:%M %Z")
-        now = datetime.now()  # Use current time
+        now = datetime.now()
         time_elapsed_hours = (now - time_reported).total_seconds() / 3600
     except ValueError:
-        print(f"Warning: Could not parse time_reported: {time_reported_str}. Using default time elapsed.")
+        logger.warning(f"Could not parse time_reported: {time_reported_str}. Using default time elapsed.")
         time_elapsed_hours = 6  # Default to 6 hours if parsing fails
 
-    # Adjust search radius based on experience level and time elapsed
     base_radius_km = 1  # Minimum search radius
 
     if "experienced" in experience_level:
         base_radius_km += 2
     elif "novice" in experience_level or "beginner" in experience_level:
         base_radius_km += 0.5
-    else:  # Unknown or intermediate
+    else:
         base_radius_km += 1
 
     # Increase radius based on time elapsed (simplistic model)
-    search_radius_km = base_radius_km + (time_elapsed_hours * 0.5)  # 0.5 km per hour
-
-    # Ensure a minimum radius
+    search_radius_km = base_radius_km + (time_elapsed_hours * 0.5)
     search_radius_km = max(1, search_radius_km)
 
     search_area_description = f"Initial search area: Approximately a {search_radius_km:.2f}km radius around the last known location: {location}. "
@@ -393,9 +394,7 @@ class PlanningAgent(SARBaseAgent):
     def __init__(self, name="planning_chief_agent"):
         system_message = """You are an AI assistant acting as a Planning Section Chief for Search and Rescue (SAR) operations.
         Your responsibilities are to develop effective search strategies and create mission plans.
-
         Your skills include: strategic thinking, analysis, documentation, resource management, scenario planning, and data interpretation.
-
         You will receive information from various sources (Incident Commander, Operations Section Chief, Logistics Section Chief) and use this to:
         1.  Develop search strategies.
         2.  Create mission plans.
@@ -404,13 +403,10 @@ class PlanningAgent(SARBaseAgent):
         5.  Maintain the quality and timeliness of mission documentation.
         6.  Develop effective contingency plans.
         7.  Ensure the accuracy of search area predictions.
-
         You will collaborate with the Operations Section Chief and Logistics Section Chief. You maintain all mission documentation.
         You should provide clear, concise, and actionable search strategies.
-
         Remember, you are operating with incomplete information and under time pressure in dynamic incident scenarios.
         """
-
         super().__init__(
             name=name,
             role="planning_section_agent",
@@ -470,13 +466,14 @@ class PlanningAgent(SARBaseAgent):
                 return {"error": "Unknown action requested.", "requested_action": action}
 
         except Exception as e:
+            logger.error(f"Error processing request: {e} | Message Details: {message}")
             return {"error": f"Error processing request: {e}", "message_details": message}
 
     def _generate_and_format_strategy(self):
         """
         Internal method to orchestrate the search strategy generation and formatting process.
 
-        Returns:
+         Returns:
             dict:  JSON-like dictionary containing the complete search strategy data.
         """
         incident_data = _get_incident_data()
@@ -499,8 +496,7 @@ class PlanningAgent(SARBaseAgent):
         gemini_summary_text = _generate_gemini_summary(strategy_json_data)
         strategy_json_data["strategy_summary_text_gemini"] = gemini_summary_text
 
-        strategy_summary = "See Gemini-generated summary in JSON output for a user-friendly version." # Brief original summary
-
+        strategy_summary = "See Gemini-generated summary in JSON output for a user-friendly version."
         strategy_json_data["strategy_summary_text_original"] = strategy_summary
 
         return strategy_json_data
@@ -508,18 +504,16 @@ class PlanningAgent(SARBaseAgent):
     def _get_real_weather_data(self, location_name):
         """Fetches and returns real-time weather data from OpenWeatherMap API."""
         try:
-
-            weather_data = self.weather_fetcher.get_weather_for_location(location_name, use_gemini=True)  # Use Gemini
+            weather_data = self.weather_fetcher.get_weather_for_location(location_name, use_gemini=True)
             return weather_data
-
         except pyowm.commons.exceptions.APIRequestError as e:
-            print(f"API request error: {str(e)}")
+            logger.error(f"API request error: {str(e)}")
             return {"error": f"API request error: {str(e)}"}
         except pyowm.commons.exceptions.APIResponseError as e:
-            print(f"API response error: {str(e)}")
+            logger.error(f"API response error: {str(e)}")
             return {"error": f"API response error: {str(e)}"}
         except Exception as e:
-            print(f"Unexpected error: {str(e)}")
+            logger.error(f"Unexpected error: {str(e)}")
             return {"error": f"Unexpected error: {str(e)}"}
 
     def _get_operations_data(self, location_name):
@@ -535,62 +529,44 @@ class PlanningAgent(SARBaseAgent):
 
     def _prioritize_search_areas(self, search_radius_km, incident_data, environmental_data, operations_data):
         """Prioritizes and returns search areas based on various factors, using Gemini for reasoning."""
-
         last_known_location = incident_data["last_known_location"]
         terrain = environmental_data["terrain_type"]
         weather_data = operations_data["current_weather_data"]
-        missing_person_profile = incident_data.get("missing_person_profile",
-                                                   "No specific profile available.")  # Example addition
+        missing_person_profile = incident_data.get("missing_person_profile", "No specific profile available.")
 
-        # --- Gemini Prompt ---
         prompt = f"""
         Analyze the following information to prioritize search areas for a Search and Rescue (SAR) operation.
-
         **Incident Data:**
         * Last Known Location: {last_known_location}
         * Search Radius: {search_radius_km} km
         * Missing Person Profile: {missing_person_profile} (e.g., age, fitness level, experience in wilderness)
         * Time Missing: {incident_data.get("time_missing", "Unknown")}
-
         **Environmental Data:**
         * Terrain Type: {terrain} (e.g., forest, mountains, urban, coastal)
         * Specific Terrain Features: {environmental_data.get("terrain_features", "None")} (e.g., rivers, cliffs, caves)
 
         **Weather Data:**
-        * Current Weather Conditions: {weather_data} (as a dictionary)
-
+        * Current Weather Conditions: {weather_data}
         **Operations Context:**
         * Available Resources: {operations_data.get("available_resources", "Limited")} (e.g., ground teams, aerial support, canine units)
         * Urgency Level: {operations_data.get("urgency_level", "Medium")} (e.g., High, Medium, Low - based on time missing, vulnerability of person, etc.)
 
         **Instructions:**
-
-        1.  **Identify 3-5 distinct search areas within the {search_radius_km} km radius of '{last_known_location}'.** Consider the last known location as the central point.
-        2.  **For each search area, assign a priority: "High", "Medium", or "Low".**
-        3.  **Provide a concise rationale (1-2 sentences) for the assigned priority of each area,** explaining how the incident data, environmental factors, and weather conditions influence the priority.
-        4.  **Format the output as a JSON list of dictionaries.** Each dictionary should have the keys: "area", "priority", and "rationale".
-
-        **Example Output Format:**
-        [
-            {{"area": "Area Name 1", "priority": "High", "rationale": "Rationale for High Priority"}},
-            {{"area": "Area Name 2", "priority": "Medium", "rationale": "Rationale for Medium Priority"}},
-            {{"area": "Area Name 3", "priority": "Low", "rationale": "Rationale for Low Priority"}}
-            # ... more areas if needed
-        ]
+        1. Identify 3-5 distinct search areas within the {search_radius_km} km radius of '{last_known_location}'.
+        2. For each search area, assign a priority: "High", "Medium", or "Low".
+        3. Provide a concise rationale (1-2 sentences) for the assigned priority.
+        4. Format the output as a JSON list of dictionaries with keys: "area", "priority", "rationale".
         """
 
         try:
             response = model.generate_content(prompt)
-            gemini_output = response.text.replace("```json", "")
-            gemini_output = gemini_output.replace("```", "")
-            print(f"Gemini Output for Search Area Prioritization:\n{gemini_output}")  # Log Gemini output
+            gemini_output = response.text.replace("```json", "").replace("```", "")
+            logger.info(f"Gemini Output for Search Area Prioritization:\n{gemini_output}")
 
-            # --- Process Gemini Output (Attempt to parse JSON) ---
             try:
-                import json  # Import json inside the try block
+                import json
                 prioritized_areas = json.loads(gemini_output)
 
-                # --- Basic Validation of Output Structure ---
                 if not isinstance(prioritized_areas, list):
                     raise ValueError("Gemini output is not a list.")
                 for area_data in prioritized_areas:
@@ -599,20 +575,15 @@ class PlanningAgent(SARBaseAgent):
                         raise ValueError("Each area item is not a dictionary with required keys.")
                     if area_data["priority"] not in ["High", "Medium", "Low"]:
                         raise ValueError("Priority is not one of 'High', 'Medium', 'Low'.")
-
                 return prioritized_areas
 
-            except (json.JSONDecodeError, ValueError) as e:  # Catch JSON errors and validation errors
-                print(f"Error processing Gemini JSON output: {e}. Falling back to basic prioritization.")
-                return _prioritize_search_areas_basic_fallback(last_known_location, terrain,
-                                                                    weather_data)  # Fallback
-
+            except (json.JSONDecodeError, ValueError) as e:
+                logger.error(f"Error processing Gemini JSON output: {e}. Falling back to basic prioritization.")
+                return _prioritize_search_areas_basic_fallback(last_known_location, terrain, weather_data)
 
         except Exception as e:
-            print(
-                f"Error during Gemini API call for search area prioritization: {e}. Falling back to basic prioritization.")
-            return _prioritize_search_areas_basic_fallback(last_known_location, terrain,
-                                                                weather_data)  # API call failure fallback
+            logger.error(f"Error during Gemini API call for search area prioritization: {e}. Falling back to basic prioritization.")
+            return _prioritize_search_areas_basic_fallback(last_known_location, terrain, weather_data)
 
     def _format_output_json(self, incident_data, operations_data, logistics_data, environmental_data,
                              search_area_description, prioritized_areas, resource_allocation_suggestions, map_url):
@@ -632,38 +603,26 @@ class PlanningAgent(SARBaseAgent):
     def generate_search_strategy(self):
         """
         Generates the complete search strategy (deprecated - use process_request now).
-        This method is kept for backward compatibility but process_request is the preferred entry point.
         """
-        return self._generate_and_format_strategy() # Simply calls the internal method
+        return self._generate_and_format_strategy()
 
 
 def _generate_location_typonyms_basic(location_name):
     """
-    Generates a list of potentially valid location names by narrowing down
-    the original location name. This is a basic implementation.
-
-    Args:
-        location_name (str): The original location name.
-
-    Returns:
-        list: A list of location names to try, starting from the most specific
-              to more general.
+    Generates a list of potentially valid location names by narrowing down the original location name.
     """
     location_parts = [part.strip() for part in location_name.split(',')]
     typonyms = []
 
-    if len(location_parts) >= 2:  # Assume format like "City, State/Country"
-        # Try most specific first
-        typonyms.append(location_name)  # Original name
-        typonyms.append(f"{location_parts[0]},{location_parts[-1]}")  # City,Country/State (less specific region)
-        typonyms.append(location_parts[-1])  # Country/State only (most general region)
-        typonyms.append(location_parts[0])  # City only (sometimes city name alone is enough)
-
-    elif len(location_parts) == 1:  # Just a single location name part
-        typonyms.append(location_name)  # Try the single name as is
-
-    else:  # Empty or unexpected format
-        typonyms.append(location_name)  # Just try the input as is
+    if len(location_parts) >= 2:
+        typonyms.append(location_name)
+        typonyms.append(f"{location_parts[0]},{location_parts[-1]}")
+        typonyms.append(location_parts[-1])
+        typonyms.append(location_parts[0])
+    elif len(location_parts) == 1:
+        typonyms.append(location_name)
+    else:
+        typonyms.append(location_name)
 
     return typonyms
 
@@ -671,120 +630,85 @@ def _generate_location_typonyms_basic(location_name):
 def _generate_location_typonyms_gemini(location_name):
     """
     Generates location name variations using Google Gemini.
-
-    Args:
-        location_name (str): The original location name.
-
-    Returns:
-        list: A list of location names to try, generated by Gemini.
     """
-    # --- Gemini Prompt ---
     prompt = f"""
     Generate a list of alternative location names that are geographically related to "{location_name}".
     These names should be suitable for use in a weather API that might not recognize very specific locations.
     Provide variations that range from more specific to more general, if applicable.
     Return the locations as a comma-separated list.
-
-    Example Input: Crystal Cove State Park, CA
-    Example Output: Crystal Cove State Park, CA, Crystal Cove, Newport Beach, CA, Orange County, CA, California, USA
+    
+    If you can't find ANY existing place the matches the input, please return the input itself.
     """
-
     try:
-        # --- Call Gemini API ---
         response = model.generate_content(prompt)
         gemini_output = response.text
-        print(f"Gemini Output for '{location_name}': {gemini_output}") # Log Gemini output for debugging
-
-        # --- Process Gemini Output ---
+        logger.info(f"Gemini Output for '{location_name}': {gemini_output}")
         typonyms = [name.strip() for name in gemini_output.split(',')]
         return typonyms
-
     except Exception as e:
-        print(f"Error during Gemini API call: {e}")
-        return _generate_location_typonyms_basic(location_name) # Fallback to basic method if Gemini fails
+        logger.error(f"Error during Gemini API call: {e}")
+        return _generate_location_typonyms_basic(location_name)
 
 
 class WeatherFetcher:
     def __init__(self):
-        pass # Add any class initializations if needed
+        pass
 
-    def _get_real_weather_data(self, location_name, use_gemini=True): # Added use_gemini parameter
+    def _get_real_weather_data(self, location_name, use_gemini=True):
         """
         Fetches and returns real-time weather data from OpenWeatherMap API.
-        Implements a location narrowing system to find suitable place names,
-        optionally using Gemini for variations.
-
-        Args:
-            location_name (str): The initial location name provided by the user.
-            use_gemini (bool):  Whether to use Gemini to generate location variations.
-                                 Defaults to True.
-
-        Returns:
-            dict: A dictionary containing either the weather data or an error message,
-                  and potentially a 'gemini_note' string.
         """
         gemini_used_flag = False
-        used_location_name = None # To store the name that actually worked
         try:
             owm = pyowm.OWM(OPENWEATHERMAP_API_KEY)
             mgr = owm.weather_manager()
 
             if use_gemini:
-                location_names_to_try = _generate_location_typonyms_gemini(location_name) # Gemini version
-                if len(location_names_to_try) > 1: # If Gemini generated variations
+                location_names_to_try = _generate_location_typonyms_gemini(location_name)
+                if len(location_names_to_try) > 1:
                     gemini_used_flag = True
             else:
-                location_names_to_try = _generate_location_typonyms_basic(location_name) # Basic version
+                location_names_to_try = _generate_location_typonyms_basic(location_name)
 
-            if not location_names_to_try: # Fallback if no typonyms generated (shouldn't usually happen)
-                location_names_to_try = [location_name] # At least try the original name
+            if not location_names_to_try:
+                location_names_to_try = [location_name]
 
             for current_location_name in location_names_to_try:
                 try:
                     observation = mgr.weather_at_place(current_location_name)
-                    weather = observation.weather  # Get the Weather object
-                    weather_dict = weather.to_dict()  # Get weather data as a dictionary
+                    weather = observation.weather
+                    weather_dict = weather.to_dict()
                     if gemini_used_flag:
                         gemini_note = f"ORIGINAL NAME: '{location_name}' wasn't found, Gemini used '{current_location_name}' to get weather info."
-                        weather_dict["gemini_note"] = gemini_note # Add the informative note
+                        weather_dict["gemini_note"] = gemini_note
                     return weather_dict
                 except pyowm_exceptions.NotFoundError:
-                    print(f"Location '{current_location_name}' not found, trying next...")  # Optional logging
-                    continue  # Try the next location name in the list
+                    logger.warning(f"Location '{current_location_name}' not found, trying next...")
+                    continue
 
-            # If no location is found after trying all typonyms:
             error_message = f"Location '{location_name}' and variations not found."
             if gemini_used_flag:
                 error_message += " Gemini variations were used but none were successful."
             error_message += " Please check the location name and try again with a more general or correctly formatted name (e.g., 'City,Country')."
-            return {"error": error_message, "gemini_used": gemini_used_flag} # Include flag in error too
+            return {"error": error_message, "gemini_used": gemini_used_flag}
 
-        except Exception as e:  # Catch broader exceptions like API key issues, network problems etc.
-            return {"error": f"Error fetching weather data: {e}", "gemini_used": gemini_used_flag} # Include flag in error too
+        except Exception as e:
+            logger.error(f"Error fetching weather data: {e}")
+            return {"error": f"Error fetching weather data: {e}", "gemini_used": gemini_used_flag}
 
-    def get_weather_for_location(self, location_name, use_gemini=True): # Added use_gemini parameter here too
-        return self._get_real_weather_data(location_name, use_gemini) # Pass use_gemini down
+    def get_weather_for_location(self, location_name, use_gemini=True):
+        return self._get_real_weather_data(location_name, use_gemini)
 
 
 if __name__ == "__main__":
-    # Instantiate the agent
     planning_agent = PlanningAgent()
 
-    # Example request message to generate a strategy (as before)
     strategy_request_message = {"action": "generate_strategy"}
-
-    # Process the strategy request
     strategy_output = planning_agent.process_request(strategy_request_message)
+    logger.info("\n--- Search Strategy Details (JSON Output from process_request) ---")
+    logger.info(json.dumps(strategy_output, indent=4))
 
-    print("\n--- Search Strategy Details (JSON Output from process_request) ---")
-    print(json.dumps(strategy_output, indent=4))
-
-    # Example request message to create a mission plan
     plan_request_message = {"action": "create_mission_plan"}
-
-    # Process the plan request
     plan_output = planning_agent.process_request(plan_request_message)
-
-    print("\n\n--- Mission Plan Details (JSON Output from process_request) ---")
-    print(json.dumps(plan_output, indent=4))
-
+    logger.info("\n\n--- Mission Plan Details (JSON Output from process_request) ---")
+    logger.info(json.dumps(plan_output, indent=4))
