@@ -7,14 +7,14 @@
 ## Planning Agent
 Added a PlanningAgent class that does the following:
 - Generating comprehensive search strategies by integrating simulated incident data, operations data (including real-time weather), logistics data, and environmental data.
-- Prioritizing search areas based on incident details, environmental factors, and operational conditions to focus search efforts effectively. 
+- Prioritizing search areas based on incident details, environmental factors, and operational conditions to effectively focus search efforts. 
 - Suggesting resource allocation for prioritized search areas based on available logistics, optimizing resource utilization. 
 - Creating basic mission plans that outline mission objectives, search strategies, resource allocation, communication plans, safety protocols, timelines, and map references. Fetching real-time weather data for the incident location using the OpenWeatherMap API, dynamically adjusting strategies to current conditions. 
 - Generating location name variations (typonyms) using Google Gemini (and a basic fallback) to improve weather data retrieval for potentially ambiguous location names. 
 - Generating Google Static Map URLs to visually represent the search area and aid in spatial understanding. 
 - Providing user-friendly summaries of both search strategies and mission plans using the Gemini API, making complex data easily digestible for SAR personnel. 
 - Formatting output as structured JSON for easy integration with other systems and for detailed data access. 
-- Processing requests via a process_request method, enabling handling of different actions such as "generate_strategy" and "create_mission_plan" in a modular way. 
+- Processing requests via a process_request method, enabling modular handling of actions such as "generate_strategy" and "create_mission_plan." 
 - Incorporating safety settings for Gemini API interactions, controlling the generation of potentially harmful content.
 
 
@@ -138,11 +138,13 @@ This project follows modern Python development practices:
 4. Follow the existing code style and structure
 5. Make sure to update requirements.txt when adding dependencies
 
-## Asssignment 3 Updates:
+## Assignment 3 Updates:
 
-Implemented the following features, based on feedback from the previous assignment:
+Implemented the following features based on feedback from the previous assignment:
 
 - Added logging to the PlanningAgent class to track the execution of different methods and actions.
-- Fixed a bug with Gemini API typonym generation, where the API was not being called correctly. Additionally, fixed unintentional over-correction on Gemini typonym generation.
-- Implement previously partially implemented methods in the PlanningAgent class, for better functionality.
+- Fixed a bug with Gemini API typonym generation, where the API was not being called correctly. F
+- Fixed unintentional over-correction on Gemini typonym generation.
+- Implement previously partially implemented methods in the PlanningAgent class for better functionality.
+- Refactored planning_agent.py - converted many class methods into static functions
 
